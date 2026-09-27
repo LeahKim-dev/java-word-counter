@@ -41,8 +41,7 @@ public class Main {
                     token = token.toLowerCase();
                     // TODO 3: 숫자만 있는 단어는 제외하고 단어별 횟수를 늘리세요.
                     if (!token.matches("[0-9]+")) {
-                        int value = counts.getOrDefault(token, 0);
-                        counts.put(token, counts.getOrDefault(token, 0) + 1); //???
+                        counts.put(token, counts.getOrDefault(token, 0) + 1);
                     }
                 }
             }
@@ -52,9 +51,9 @@ public class Main {
         System.out.println("파일 읽기 성공. 다음 단계는 단어 분리와 카운팅입니다.");
         System.out.println("구현 후 전체 9개·6종인지 expected/basic-counts.tsv와 비교하세요.");
         // TODO 4: 원문 출력 대신 집계 결과를 출력하세요.
+        System.out.println("word    count");
         for (Map.Entry<String, Integer> entry : counts.entrySet()) {
-            entry.getKey();
-            entry.getValue();
+            System.out.println(entry.getKey() + "\t" + entry.getValue());
         }
         // TXT 카운팅 완성 후 다른 형식, 메뉴, 오류 처리, 저장을 추가하세요.
     }
