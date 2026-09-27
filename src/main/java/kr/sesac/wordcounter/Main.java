@@ -22,14 +22,45 @@ import java.util.regex.Pattern;
 
 public class Main {
     public static void main(String[] args) throws IOException {
-        Path input = Path.of("samples/equivalent/basic.html");
-
-        System.out.println("문서 단어 분석기 - 시작 코드");
-        System.out.println("입력 파일: " + input);
-        System.out.println();
+        Path inputDir = Path.of("samples/equivalent");
 
         Map<String, Integer> counts = new HashMap<>();
 
+        try (var paths = Files.list(inputDir)) {
+            for (Path path : paths.toList()) {
+                if (!Files.isRegularFile(path)) { // 파일 아닌것 처리
+                    continue;
+                }
+
+                System.out.println("입력 파일: " + path);
+                System.out.println();
+
+                Map<String, Integer> fileCounts = new HashMap<>(); // 임시 Map
+                try {
+                    processFile(path, fileCounts);
+
+                    // 합치기
+                    for (Map.Entry<String, Integer> entry : fileCounts.entrySet()) {
+                        counts.merge(
+                                entry.getKey(),
+                                entry.getValue(),
+                                Integer::sum // (oldValue, newValue) -> Integer.sum(oldValue, newValue)
+                        );
+                    }
+                }
+                catch (IOException e) {
+                    System.out.println("처리 실패: " + path);
+                }
+            }
+        }
+
+        System.out.println("word\tcount");
+        for (Map.Entry<String, Integer> entry : counts.entrySet()) {
+            System.out.println(entry.getKey() + "\t" + entry.getValue());
+        }
+    }
+
+    private static void processFile(Path input, Map<String, Integer> counts) throws IOException {
         // 0. 파일 형식 구분
         String fileName = input.getFileName().toString().toLowerCase();
 
@@ -42,13 +73,7 @@ public class Main {
         } else if (fileName.endsWith(".html")) {
             processHtml(input, counts);
         } else {
-            System.out.println("지원하지 않는 형식입니다.");
-            return;
-        }
-
-        System.out.println("word\tcount");
-        for (Map.Entry<String, Integer> entry : counts.entrySet()) {
-            System.out.println(entry.getKey() + "\t" + entry.getValue());
+            throw new IOException("지원하지 않는 형식입니다." + input); // 실패한 파일 확인용
         }
     }
 
