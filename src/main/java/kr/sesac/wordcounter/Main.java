@@ -1,160 +1,259 @@
 package kr.sesac.wordcounter;
 
-import org.apache.commons.csv.CSVFormat;
-import org.apache.commons.csv.CSVParser;
-import org.apache.commons.csv.CSVRecord;
-import org.jsoup.Jsoup;
-import org.jsoup.nodes.Document;
-import org.jsoup.nodes.Element;
-import org.jsoup.select.Elements;
-
-import java.io.BufferedReader;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.sql.SQLOutput;
-import java.util.HashMap;
-import java.util.Locale;
-import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.util.*;
 
 public class Main {
-    public static void main(String[] args) throws IOException {
-        Path inputDir = Path.of("samples/equivalent");
+    public static void main(String[] args) {
+        Scanner scanner = new Scanner(System.in);
+        showMenu(scanner);
+    }
 
-        Map<String, Integer> counts = new HashMap<>();
+    // 0. 메뉴
+    private static void showMenu(Scanner scanner) {
+        Map<String, Long> counts = new HashMap<>();
 
-        try (var paths = Files.list(inputDir)) {
-            for (Path path : paths.toList()) {
-                if (!Files.isRegularFile(path)) { // 파일 아닌것 처리
+        while (true) {
+            System.out.println();
+            System.out.println("문서 단어 분석기");
+            System.out.println("1. 새 분석 시작");
+            System.out.println("2. 상위 N개 단어 조회");
+            System.out.println("3. 특정 단어 조회");
+            System.out.println("4. 전체 결과 저장");
+            System.out.println("5. 최근 분석 요약 보기");
+            System.out.println("0. 종료");
+            System.out.print("선택 > ");
+
+            String input = scanner.nextLine();
+
+            switch (input) {
+                case "1":
+                    counts = startNewAnalysis(scanner);
+                    break;
+
+                case "2":
+                    showTopWords(scanner, counts);
+                    break;
+
+                case "3":
+                    findWord(scanner, counts);
+                    break;
+
+                case "4":
+                    saveCounts(counts);
+                    break;
+
+                case "5":
+                    AnalysisSummary.printSummary();
+                    break;
+
+                case "0":
+                    System.out.println("프로그램을 종료합니다.");
+                    return;
+
+                default:
+                    System.out.println("잘못된 입력입니다.");
+            }
+        }
+    }
+
+    // 1. 새 분석 시작
+    private static Map<String, Long> startNewAnalysis(Scanner scanner) {
+
+        while (true) {
+            System.out.print("파일 또는 폴더 경로 > ");
+            String pathInput = scanner.nextLine().trim();
+
+            if (pathInput.isEmpty()) {
+                System.out.println("경로를 입력하세요.");
+                continue;
+            }
+
+            Path inputPath = Path.of(pathInput);
+
+            if (!Files.exists(inputPath)) {
+                System.out.println("경로를 찾을 수 없습니다: " + pathInput);
+                continue;
+            }
+
+            List<Path> files = new ArrayList<>();
+            int skippedCount = 0;
+
+            if (Files.isRegularFile(inputPath)) {
+                if (FileProcessor.isSupported(inputPath)) {
+                    files.add(inputPath);
+                } else {
+                    System.out.println("지원하지 않는 파일입니다. 지원 확장자: .txt, .csv, .tsv, .html, .htm");
+                    continue;
+                }
+            } else if (Files.isDirectory(inputPath)) {
+                try (var paths = Files.list(inputPath)) {
+                    for (Path path : paths.toList()) {
+                        if (!Files.isRegularFile(path)) {
+                            continue;
+                        }
+                        if (FileProcessor.isSupported(path)) {
+                            files.add(path);
+                        } else {
+                            skippedCount++;
+                        }
+                    }
+                } catch (IOException e) {
+                    System.out.println("경로를 읽을 수 없습니다: " + pathInput);
                     continue;
                 }
 
-                System.out.println("입력 파일: " + path);
-                System.out.println();
+                if (files.isEmpty()) {
+                    System.out.println("지원 파일이 없습니다.");
+                    continue;
+                }
+            }
 
-                Map<String, Integer> fileCounts = new HashMap<>(); // 임시 Map
+            // 시간 측정 시작
+            long startTime = System.nanoTime();
+
+            Map<String, Long> totalCounts = new HashMap<>();
+            int successCount = 0;
+            int failCount = 0;
+
+            for (Path file : files) {
+                Map<String, Long> fileCounts = new HashMap<>();
                 try {
-                    processFile(path, fileCounts);
-
-                    // 합치기
-                    for (Map.Entry<String, Integer> entry : fileCounts.entrySet()) {
-                        counts.merge(
-                                entry.getKey(),
-                                entry.getValue(),
-                                Integer::sum // (oldValue, newValue) -> Integer.sum(oldValue, newValue)
-                        );
-                    }
-                }
-                catch (IOException e) {
-                    System.out.println("처리 실패: " + path);
+                    FileProcessor.processFile(file, fileCounts); // 실패 시 안더함
+                    WordCounter.mergeCounts(totalCounts, fileCounts);
+                    successCount++;
+                } catch (IOException e) {
+                    System.out.println("실패: " + file + " (" + e.getMessage() + ")");
+                    failCount++;
                 }
             }
-        }
 
-        System.out.println("word\tcount");
-        for (Map.Entry<String, Integer> entry : counts.entrySet()) {
-            System.out.println(entry.getKey() + "\t" + entry.getValue());
+            long elapsedNanos = System.nanoTime() - startTime;
+            // 시간 측정 끝
+
+            long totalWords = 0;
+            for (long count : totalCounts.values()) {
+                totalWords += count;
+            }
+
+            // 요약 정보 저장
+            AnalysisSummary.lastInputPath = pathInput;
+            AnalysisSummary.lastAttemptCount = files.size();
+            AnalysisSummary.lastSuccessCount = successCount;
+            AnalysisSummary.lastFailCount = failCount;
+            AnalysisSummary.lastSkippedCount = skippedCount;
+            AnalysisSummary.lastTotalWords = totalWords;
+            AnalysisSummary.lastElapsedNanos = elapsedNanos;
+            AnalysisSummary.hasUsableResult = successCount > 0; // 성공한 파일이 하나라도 있어야 조회저장 가능
+            AnalysisSummary.lastDistinctWords = totalCounts.size();
+
+            System.out.println();
+            System.out.println("분석 완료");
+            AnalysisSummary.printSummary();
+
+            return totalCounts;
         }
     }
 
-    private static void processFile(Path input, Map<String, Integer> counts) throws IOException {
-        // 0. 파일 형식 구분
-        String fileName = input.getFileName().toString().toLowerCase();
-
-        if (fileName.endsWith(".txt")) {
-            processTxt(input, counts);
-        } else if (fileName.endsWith(".tsv")) {
-            processTsv(input, counts);
-        } else if (fileName.endsWith(".csv")) {
-            processCsv(input, counts);
-        } else if (fileName.endsWith(".html")) {
-            processHtml(input, counts);
-        } else {
-            throw new IOException("지원하지 않는 형식입니다." + input); // 실패한 파일 확인용
+    // 2. 상위 N개 단어 조회
+    private static void showTopWords(Scanner scanner, Map<String, Long> counts) {
+        if (!AnalysisSummary.hasUsableResult) {
+            System.out.println("조회할 결과가 없습니다. 먼저 분석을 시작하세요.");
+            return;
         }
-    }
 
-    // 1. txt
-    private static void processTxt(Path input, Map<String, Integer> counts) throws IOException {
-        try (BufferedReader reader =
-                     Files.newBufferedReader(input, StandardCharsets.UTF_8)) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                countWords(line, counts);
+        int n = 10; // 기본값
+
+        while (true) {
+            System.out.print("몇 개를 볼까요? (기본 10) > ");
+            String line = scanner.nextLine().trim();
+
+            if (line.isEmpty()) {
+                n = 10;
+                break;
+            }
+
+            try {
+                int parsed = Integer.parseInt(line);
+                if (parsed < 1) {
+                    System.out.println("1 이상의 정수를 입력하세요.");
+                    continue;
+                }
+                n = parsed;
+                break;
+            } catch (NumberFormatException e) {
+                System.out.println("1 이상의 정수를 입력하세요.");
             }
         }
+
+        List<Map.Entry<String, Long>> sorted = WordCounter.getSortedEntries(counts);
+
+        int limit = Math.min(n, sorted.size());
+        for (int i = 0; i < limit; i++) {
+            Map.Entry<String, Long> entry = sorted.get(i);
+            System.out.println((i + 1) + ". " + entry.getKey() + " : " + entry.getValue() + "회");
+        }
     }
 
-    // 2. csv
-    private static void processCsv(Path input, Map<String, Integer> counts) throws IOException {
-        // var: 오른쪽 값을 보고 컴파일러가 변수 타입을 알아서 정하게 하는 것
-        var format = CSVFormat.RFC4180.builder() // 표준 CSV형식으로 읽기
-                .setHeader() // 첫 번째 줄을 컬럼 이름으로
-                .setSkipHeaderRecord(true) // 첫 번째 줄 데이터로 처리하지 않게
-                // tsv 확장 시 .setDelimiter('\t')와 .setQuote(null) 추가
-                .get();
+    // 3. 특정 단어 조회
+    private static void findWord(Scanner scanner, Map<String, Long> counts) {
+        if (!AnalysisSummary.hasUsableResult) {
+            System.out.println("조회할 결과가 없습니다. 먼저 분석을 시작하세요.");
+            return;
+        }
 
-        try (var reader = Files.newBufferedReader( // try-with-resources
-                input, StandardCharsets.UTF_8);
-             CSVParser parser = format.parse(reader)) {
+        while (true) {
+            System.out.print("찾을 단어 > ");
+            String line = scanner.nextLine();
 
-            for (CSVRecord record : parser) {
-                String text = record.get("text");
-                countWords(text, counts);
+            List<String> tokens = WordCounter.extractTokens(line);
+
+            if (tokens.size() != 1) {
+                System.out.println("단어 하나를 입력하세요.");
+                continue;
             }
+
+            String word = tokens.get(0);
+            long count = counts.getOrDefault(word, 0L);
+            System.out.println(word + " : " + count + "회");
+            return;
         }
     }
 
-    // 3. tsv
-    private static void processTsv(Path input, Map<String, Integer> counts) throws IOException {
-        var format = CSVFormat.RFC4180.builder()
-                .setHeader()
-                .setSkipHeaderRecord(true)
-                .setDelimiter('\t')
-                .setQuote(null)
-                .get();
+    // 4. 전체 결과 저장
+    private static void saveCounts(Map<String, Long> counts) {
+        if (!AnalysisSummary.hasUsableResult) {
+            System.out.println("저장할 결과가 없습니다. 먼저 분석을 시작하세요.");
+            return;
+        }
 
-        try (var reader = Files.newBufferedReader( // try-with-resources
-                input, StandardCharsets.UTF_8);
-             CSVParser parser = format.parse(reader)) {
+        List<Map.Entry<String, Long>> sorted = WordCounter.getSortedEntries(counts);
 
-            for (CSVRecord record : parser) {
-                String document = record.get("document");
-                countWords(document, counts);
+        Path outDir = Path.of("out");
+        Path outFile = outDir.resolve("counts.tsv");
+
+        try {
+            Files.createDirectories(outDir);
+
+            try (var writer = Files.newBufferedWriter(outFile, StandardCharsets.UTF_8)) {
+                writer.write("word\tcount");
+                writer.newLine();
+                for (Map.Entry<String, Long> entry : sorted) {
+                    writer.write(entry.getKey() + "\t" + entry.getValue());
+                    writer.newLine();
+                }
             }
+
+            System.out.println("전체 결과 " + sorted.size() + "개 단어를 " + outFile + "에 저장했습니다.");
+
+        } catch (IOException e) {
+            System.out.println("저장에 실패했습니다: " + e.getMessage());
+            // 저장 실패해도 counts는 그대로이므로, 계속 조회 가능
         }
     }
 
-    // 4. html
-    private static void processHtml(Path input, Map<String, Integer> counts) throws IOException {
-        Document document = Jsoup.parse(
-                Path.of("samples/equivalent/basic.html").toFile(), "UTF-8");
-        Elements matches = document.select("#content");
-        if (matches.size() != 1) {
-            throw new IOException("본문 요소는 정확히 하나여야 합니다.");
-        }
-        Element content = matches.first();
-        content.select("script, style, nav, header, footer").remove();
-        countWords(content.text(), counts);
-    }
 
-    private static void countWords(String text, Map<String, Integer> counts) {
-        Pattern pattern = Pattern.compile("[A-Za-z0-9가-힣ㄱ-ㅎㅏ-ㅣ]+");
-        Matcher matcher = pattern.matcher(text);
-
-        while (matcher.find()) {
-            String token = matcher.group();
-            token = token.toLowerCase();
-
-            if (!token.matches("[0-9]+")) {
-                counts.put(
-                        token,
-                        counts.getOrDefault(token, 0) + 1
-                );
-            }
-        }
-    }
 }
