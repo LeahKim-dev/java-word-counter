@@ -196,6 +196,11 @@ public class Main {
             }
         }
 
+        if (counts.isEmpty()) {
+            System.out.println("집계된 단어가 없습니다.");
+            return;
+        }
+
         List<Map.Entry<String, Long>> sorted = WordCounter.getSortedEntries(counts);
 
         int limit = Math.min(n, sorted.size());
