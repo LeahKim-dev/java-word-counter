@@ -3,6 +3,7 @@ package kr.sesac.wordcounter;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.util.*;
 
@@ -72,12 +73,18 @@ public class Main {
                 continue;
             }
 
-            Path inputPath = Path.of(pathInput);
+            Path inputPath;
+
+            try {
+                inputPath = Path.of(pathInput);
+            } catch (InvalidPathException e) {
+                    System.out.println("유효하지 않은 경로입니다. 다시 입력해주세요.");
+                    continue;
+            }
 
             if (!Files.exists(inputPath)) {
                 System.out.println("경로를 찾을 수 없습니다: " + pathInput);
-                continue;
-            }
+                continue;}
 
             List<Path> files = new ArrayList<>();
             int skippedCount = 0;
