@@ -10,18 +10,24 @@ public class WordCounter {
     private static final Pattern WORD_PATTERN =
             Pattern.compile("[A-Za-z0-9가-힣ㄱ-ㅎㅏ-ㅣ]+");
 
-    // 한 줄(또는 한 문단)에서 단어를 뽑아 counts에 누적
-    static void countWords(String text, Map<String, Long> counts) {
+    // 문자열에서 단어 목록만 뽑기 findWord용
+    public static List<String> extractTokens(String text) {
+        List<String> tokens = new ArrayList<>();
         Matcher matcher = WORD_PATTERN.matcher(text);
 
         while (matcher.find()) {
-            String token = matcher.group();
-            token = token.toLowerCase();
-
+            String token = matcher.group().toLowerCase();
             if (!token.matches("[0-9]+")) {
+                tokens.add(token);
+            }
+        }
+        return tokens;
+    }
+    // 한 줄(또는 한 문단)에서 단어를 뽑아 counts에 누적
+    static void countWords(String text, Map<String, Long> counts) {
+        for (String token : extractTokens(text)) {
                 long current = counts.getOrDefault(token, 0L);
                 counts.put(token, current + 1);
-            }
         }
     }
 
@@ -46,17 +52,5 @@ public class WordCounter {
         return entries;
     }
 
-    // 문자열에서 단어 목록만 뽑기 findWord용
-    public static List<String> extractTokens(String text) {
-        List<String> tokens = new ArrayList<>();
-        Matcher matcher = WORD_PATTERN.matcher(text);
 
-        while (matcher.find()) {
-            String token = matcher.group().toLowerCase();
-            if (!token.matches("[0-9]+")) {
-                tokens.add(token);
-            }
-        }
-        return tokens;
-    }
 }
