@@ -114,7 +114,9 @@ public class FileProcessor {
     }
 
     private static void processHtml(Path input, Map<String, Long> counts) throws IOException {
-        Document document = Jsoup.parse(input.toFile(), "UTF-8");
+        String html = Files.readString(input, StandardCharsets.UTF_8);
+        Document document = Jsoup.parse(html);
+
         Elements matches = document.select("#content");
         if (matches.size() != 1) {
             throw new IOException("본문 요소는 정확히 하나여야 합니다.");
