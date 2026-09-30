@@ -66,14 +66,14 @@ public class FileProcessor {
 
     private static void processCsv(Path input, Map<String, Long> counts) throws IOException {
         var format = CSVFormat.RFC4180.builder()
-                .setHeader()
-                .setSkipHeaderRecord(true)
+                .setHeader() // 첫 번째 줄을 헤더로
+                .setSkipHeaderRecord(true) // 헤더 데이터로 처리x
                 .get();
 
-        try (var reader = Files.newBufferedReader(input, StandardCharsets.UTF_8);
-             CSVParser parser = format.parse(reader)) {
-
-            // 열이 있는지 확인
+        try (
+            var reader = Files.newBufferedReader(input, StandardCharsets.UTF_8); // input 파일을 UTF-8로 읽기 위한 Reader
+            CSVParser parser = format.parse(reader) // reader를 CSVParser로 변환
+        ) { // 열이 있는지 확인
             Map<String, Integer> header = parser.getHeaderMap();
             if (header == null || !header.containsKey("text")) {
 //            if (header == null || !header.containsKey("Q")|| !header.containsKey("A")){
@@ -96,7 +96,7 @@ public class FileProcessor {
         var format = CSVFormat.RFC4180.builder()
                 .setHeader()
                 .setSkipHeaderRecord(true)
-                .setDelimiter('\t')
+                .setDelimiter('\t') // 열을 탭으로 구분
                 .setQuote(null)
                 .get();
 
