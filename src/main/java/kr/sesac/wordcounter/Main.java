@@ -68,15 +68,15 @@ public class Main {
             System.out.print("파일 또는 폴더 경로 > ");
             String pathInput = scanner.nextLine().trim();
 
+            // 빈 문자열 -> 다시 입력 받기
             if (pathInput.isEmpty()) {
                 System.out.println("경로를 입력하세요.");
                 continue;
             }
 
             Path inputPath;
-
             try {
-                inputPath = Path.of(pathInput);
+                inputPath = Path.of(pathInput); // Path.of(): String -> Path
             } catch (InvalidPathException e) {
                     System.out.println("유효하지 않은 경로입니다. 다시 입력해주세요.");
                     continue;
@@ -86,6 +86,7 @@ public class Main {
                 System.out.println("경로를 찾을 수 없습니다: " + pathInput);
                 continue;}
 
+            // 분석할 파일 목록
             List<Path> files = new ArrayList<>();
             int skippedCount = 0;
 
@@ -113,6 +114,7 @@ public class Main {
                     continue;
                 }
 
+                // 지원 파일이 하나도 없을 때 안내문구
                 if (files.isEmpty()) {
                     System.out.println("지원 파일이 없습니다.");
                     continue;
@@ -122,6 +124,7 @@ public class Main {
             // 시간 측정 시작
             long startTime = System.nanoTime();
 
+            // 전체 결과를 저장할 Map
             Map<String, Long> totalCounts = new HashMap<>();
             int successCount = 0;
             int failCount = 0;
@@ -138,8 +141,7 @@ public class Main {
                 }
             }
 
-            long elapsedNanos = System.nanoTime() - startTime;
-            // 시간 측정 끝
+            long elapsedNanos = System.nanoTime() - startTime; // 시간 측정 끝
 
             long totalWords = 0;
             for (long count : totalCounts.values()) {
@@ -154,8 +156,8 @@ public class Main {
             AnalysisSummary.lastSkippedCount = skippedCount;
             AnalysisSummary.lastTotalWords = totalWords;
             AnalysisSummary.lastElapsedNanos = elapsedNanos;
-            AnalysisSummary.hasUsableResult = successCount > 0; // 성공한 파일이 하나라도 있어야 조회저장 가능
             AnalysisSummary.lastDistinctWords = totalCounts.size();
+            AnalysisSummary.hasUsableResult = successCount > 0; // 성공한 파일이 하나라도 있어야 조회저장 가능
 
             System.out.println();
             System.out.println("분석 완료");
@@ -201,10 +203,12 @@ public class Main {
             return;
         }
 
+        // counts의 Entry들을 꺼내서 정렬한 List
         List<Map.Entry<String, Long>> sorted = WordCounter.getSortedEntries(counts);
 
         int limit = Math.min(n, sorted.size());
         for (int i = 0; i < limit; i++) {
+            // sorted에서 i번째 Entry 하나를 꺼내서 entry에 저장
             Map.Entry<String, Long> entry = sorted.get(i);
             System.out.println((i + 1) + ". " + entry.getKey() + " : " + entry.getValue() + "회");
         }
@@ -237,11 +241,13 @@ public class Main {
 
     // 4. 전체 결과 저장
     private static void saveCounts(Map<String, Long> counts) {
+        // 저장할 결과가 있는지 확인
         if (!AnalysisSummary.hasUsableResult) {
             System.out.println("저장할 결과가 없습니다. 먼저 분석을 시작하세요.");
             return;
         }
 
+        // 저장할 순서로 정렬
         List<Map.Entry<String, Long>> sorted = WordCounter.getSortedEntries(counts);
 
         Path outDir = Path.of("out");
@@ -261,11 +267,8 @@ public class Main {
 
             System.out.println("전체 결과 " + sorted.size() + "개 단어를 " + outFile + "에 저장했습니다.");
 
-        } catch (IOException e) {
+        } catch (IOException e) {// 저장 실패해도 counts는 그대로이므로, 계속 조회 가능
             System.out.println("저장에 실패했습니다: " + e.getMessage());
-            // 저장 실패해도 counts는 그대로이므로, 계속 조회 가능
         }
     }
-
-
 }
