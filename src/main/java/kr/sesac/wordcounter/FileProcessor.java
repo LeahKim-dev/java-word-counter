@@ -44,9 +44,14 @@ public class FileProcessor {
                 throw new IOException("지원하지 않는 형식입니다: " + input);
             }
         } catch (UncheckedIOException e) {
-            // CSV/TSV 파싱 중 생긴 오류를 IOException으로 바꿔서 Main이 잡을 수 있게
-            throw new IOException("형식이 올바르지 않습니다.");
-        }
+            String detail;
+            if (e.getCause() != null) {
+                detail = e.getCause().getMessage();
+            } else {
+                detail = e.getMessage();
+            }
+            throw new IOException("형식이 올바르지 않습니다: " + detail, e);
+            }
     }
 
     private static void processTxt(Path input, Map<String, Long> counts) throws IOException {
