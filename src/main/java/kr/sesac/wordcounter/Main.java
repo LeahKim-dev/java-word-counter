@@ -107,6 +107,8 @@ public class Main {
                             files.add(path);
                         } else {
                             skippedCount++;
+//                            System.out.println("건너뜀: " + path.getFileName()
+//                                    + " (지원하지 않는 확장자)");
                         }
                     }
                 } catch (IOException e) {
