@@ -75,8 +75,8 @@ public class FileProcessor {
             CSVParser parser = format.parse(reader) // reader를 CSVParser로 변환
         ) { // 열이 있는지 확인
             Map<String, Integer> header = parser.getHeaderMap();
-            if (header == null || !header.containsKey("text")) {
-//            if (header == null || !header.containsKey("Q")|| !header.containsKey("A")){
+//            if (header == null || !header.containsKey("text")) {
+            if (header == null || !header.containsKey("Q")|| !header.containsKey("A")){
                 throw new IOException("text 열이 없습니다.");
             }
 
@@ -84,10 +84,11 @@ public class FileProcessor {
                 if (!record.isConsistent()) {
                     throw new IOException("셀 수가 헤더와 다릅니다. (" + record.getRecordNumber() + "번째 레코드)");
                 }
-                String text = record.get("text");
-                WordCounter.countWords(text, counts);
-//                WordCounter.countWords(record.get("Q"), counts);
-//                WordCounter.countWords(record.get("A"), counts);
+//                String text = record.get("text");
+//                WordCounter.countWords(text, counts);
+//
+                WordCounter.countWords(record.get("Q"), counts);
+                WordCounter.countWords(record.get("A"), counts);
             }
         }
     }
