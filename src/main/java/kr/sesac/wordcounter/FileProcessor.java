@@ -76,8 +76,14 @@ public class FileProcessor {
         ) { // 열이 있는지 확인
             Map<String, Integer> header = parser.getHeaderMap();
 //            if (header == null || !header.containsKey("text")) {
-            if (header == null || !header.containsKey("Q")|| !header.containsKey("A")){
-                throw new IOException("text 열이 없습니다.");
+
+            /*
+             * 문제점 : CSV의 필수 열은 Q와 A인데 오류 메시지에는 text 열로 표시됨.
+             * 원인 : 필수 열을 Q, A로 변경한 뒤 기존 오류 메시지가 그대로 남아 있음.
+             * 수정자 : 원대호
+             */
+            if (header == null || !header.containsKey("Q") || !header.containsKey("A")) {
+                throw new IOException("Q 또는 A 열이 없습니다.");
             }
 
             for (CSVRecord record : parser) {
