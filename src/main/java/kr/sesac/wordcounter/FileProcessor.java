@@ -14,6 +14,8 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class FileProcessor {
@@ -51,7 +53,15 @@ public class FileProcessor {
                 detail = e.getMessage();
             }
             throw new IOException("형식이 올바르지 않습니다: " + detail, e);
-            }
+        /*
+         * 문제점 : 헤더 이름이 비어 있는 CSV 등에서 던지는 IllegalArgumentException을 처리하지 않음.
+         * 원인 : IOException, UncheckedIOException만 변환하고 파서가 던지는 IllegalArgumentException은 놓침.
+         *        Main은 IOException만 잡으므로 예외가 전파되어 프로그램이 종료됨.
+         * 수정자 : 정유진
+         */
+        } catch (IllegalArgumentException e) {
+            throw new IOException("형식이 올바르지 않습니다: " + e.getMessage(), e);
+        }
     }
 
     private static void processTxt(Path input, Map<String, Long> counts) throws IOException {
@@ -65,56 +75,61 @@ public class FileProcessor {
     }
 
     private static void processCsv(Path input, Map<String, Long> counts) throws IOException {
-        var format = CSVFormat.RFC4180.builder()
-                .setHeader() // 첫 번째 줄을 헤더로
-                .setSkipHeaderRecord(true) // 헤더 데이터로 처리x
-                .get();
-
-        try (
-            var reader = Files.newBufferedReader(input, StandardCharsets.UTF_8); // input 파일을 UTF-8로 읽기 위한 Reader
-            CSVParser parser = format.parse(reader) // reader를 CSVParser로 변환
-        ) { // 열이 있는지 확인
-            Map<String, Integer> header = parser.getHeaderMap();
-//            if (header == null || !header.containsKey("text")) {
-            if (header == null || !header.containsKey("Q")|| !header.containsKey("A")){
-                throw new IOException("text 열이 없습니다.");
-            }
-
-            for (CSVRecord record : parser) {
-                if (!record.isConsistent()) {
-                    throw new IOException("셀 수가 헤더와 다릅니다. (" + record.getRecordNumber() + "번째 레코드)");
-                }
-//                String text = record.get("text");
-//                WordCounter.countWords(text, counts);
-//
-                WordCounter.countWords(record.get("Q"), counts);
-                WordCounter.countWords(record.get("A"), counts);
-            }
-        }
+        processDelimitedFile(input, counts, ',', true, List.of("Q", "A"));
     }
 
     private static void processTsv(Path input, Map<String, Long> counts) throws IOException {
-        var format = CSVFormat.RFC4180.builder()
-                .setHeader()
-                .setSkipHeaderRecord(true)
-                .setDelimiter('\t') // 열을 탭으로 구분
-                .setQuote(null)
-                .get();
+        processDelimitedFile(input, counts, '\t', false, List.of("document"));
+    }
+
+    /*
+     * 문제점 : processCsv와 processTsv가 헤더 검증, 셀 수 검사, 순회 구조까지 거의 같은 코드를 중복함.
+     * 원인 : 구분자, 따옴표 사용 여부, 분석 열만 다른데도 형식별로 메서드를 따로 구현함.
+     * 수정자 : 정유진
+     */
+    private static void processDelimitedFile(Path input, Map<String, Long> counts,
+                                             char delimiter, boolean useQuote,
+                                             List<String> columns) throws IOException {
+        var builder = CSVFormat.RFC4180.builder()
+                .setHeader() // 첫 번째 줄을 헤더로
+                .setSkipHeaderRecord(true) // 헤더 데이터로 처리x
+                .setDelimiter(delimiter);
+        if (!useQuote) {
+            builder.setQuote(null);
+        }
+        var format = builder.get();
 
         try (var reader = Files.newBufferedReader(input, StandardCharsets.UTF_8);
              CSVParser parser = format.parse(reader)) {
 
-            Map<String, Integer> header = parser.getHeaderMap();
-            if (header == null || !header.containsKey("document")) {
-                throw new IOException("document 열이 없습니다.");
+            Map<String, Integer> rawHeader = parser.getHeaderMap();
+            if (rawHeader == null) {
+                throw new IOException("헤더를 읽을 수 없습니다.");
+            }
+
+            /*
+             * 문제점 : 헤더 이름에 앞뒤 공백이 있으면(예: "Q, A") 열이 있어도 없다고 판단함.
+             * 원인 : 헤더 이름을 그대로 비교함. 요구사항은 앞뒤 공백을 제거해 비교하도록 정함.
+             * 수정자 : 정유진
+             */
+            Map<String, Integer> header = new HashMap<>();
+            for (Map.Entry<String, Integer> entry : rawHeader.entrySet()) {
+                header.put(entry.getKey().trim(), entry.getValue());
+            }
+
+            for (String column : columns) {
+                if (!header.containsKey(column)) {
+                    throw new IOException(column + " 열이 없습니다.");
+                }
             }
 
             for (CSVRecord record : parser) {
                 if (!record.isConsistent()) {
                     throw new IOException("셀 수가 헤더와 다릅니다. (" + record.getRecordNumber() + "번째 레코드)");
                 }
-                String document = record.get("document");
-                WordCounter.countWords(document, counts);
+                for (String column : columns) {
+                    WordCounter.countWords(record.get(header.get(column)), counts);
+                }
             }
         }
     }
